@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # === APLICAÇÃO ===
+  database:
+    image: postgres:15-alpine
+    container_name: techedu_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: techedu
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - techedu-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: techedu_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - techedu-network
+
+  minio:
+    image: minio/minio
+    container_name: techedu_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: 12345678
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - techedu-network
+
+  backend:
+    build: ./backend
+    container_name: techedu_backend
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgres://admin:123456@database:5432/techedu
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=12345678
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - database
+      - redis
+      - minio
+    networks:
+      - techedu-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build: ./frontend
+    container_name: techedu_frontend
+    environment:
+      - API_URL=http://localhost:3000
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - techedu-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # === INFRAESTRUTURA SRE: MÉTRICAS ===
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: techedu_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - techedu-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: techedu_grafana
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - techedu-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: techedu_cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - techedu-network
+
+  # === INFRAESTRUTURA SRE: LOGS ===
+  loki:
+    image: grafana/loki:latest
+    container_name: techedu_loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - techedu-network
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: techedu_promtail
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml
+    command: -config.file=/etc/promtail/promtail-config.yml
+    depends_on:
+      - loki
+    networks:
+      - techedu-network
+
+networks:
+  techedu-network:
+    driver: bridge
+
+volumes:
+  db_data:
+  minio_data:
