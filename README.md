@@ -24,32 +24,7 @@ Métricas: Prometheus e9090 e 8080
 Logs: Loki e Promtail - Porta 3100
 Dashboard SRE: Grafana - Porta 3002
 
-tech-edu-platform/
-├── docker-compose.yml          # Orquestração de toda a infraestrutura
-├── prometheus.yml              # Configuração de coleta de métricas
-├── promtail-config.yml         # Configuração de coleta de logs
-├── grafana/                    # Provisionamento automático do Grafana
-│   └── provisioning/
-│       └── datasources/
-│           └── datasources.yml # Auto-configuração Prometheus e Loki
-├── backend/
-│   ├── Dockerfile
-│   ├── package.json
-│   └── src/
-│       └── server.js          # API, regras de negócio e instrumentação SRE
-└── frontend/
-    ├── Dockerfile
-    ├── package.json
-    └── src/
-        └── app/
-            ├── layout.js       # Estrutura base do Next.js
-            ├── page.js         # Landing Page (Home)
-            ├── admin/
-            │   └── page.js     # Painel Admin (Upload de vídeos)
-            └── portal/
-                └── page.js     # Portal do Aluno (Acesso às aulas)
 
-                Como Rodar o Projeto (Guia de Instalação)
 Subir a infraestrutura:
 No terminal, na raiz do projeto, execute:
 bash
