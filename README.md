@@ -25,56 +25,93 @@ Logs: Loki e Promtail - Porta 3100
 Dashboard SRE: Grafana - Porta 3002
 
 
-Subir a infraestrutura:
-No terminal, na raiz do projeto, execute:
-bash
+# Comandos do Projeto
 
+## Docker Compose
+
+### Subir infraestrutura completa
 docker-compose up --build -V -d
-Configurar o MinIO (Apenas na primeira vez):
-Para que os vídeos possam ser reproduzidos no navegador, a bucket deve ser pública. Rode:
-bash
 
-docker run --rm --net=host --entrypoint /bin/
+### Subir sem rebuild
+docker-compose up -d
 
-docker run --rm --net=host --entrypoint /bin/sh minio/mc -c \
-"mc alias set meu-minio http://localhost:9000 admin 12345678 && \
-mc anonymous set download meu-minio/techedu"
+### Derrubar containers
+docker-compose down
 
-Jornada do Usuário (Fluxo da Aplicação)
-Cadastro: O usuário clica em "Criar Conta" na Landing Page. O Next.js envia um POST para a API, que salva o usuário no PostgreSQL.
-Upload (Admin): O administrador acessa /admin, faz o upload de um vídeo. A API usa Multer + MinIO para salvar o arquivo físico e gera uma URL pública. Em seguida, salva os dados do curso (Título, Preço, URL) no banco.
-Compra (Mock): O aluno acessa /portal, vê o curso disponível e clica em "Comprar Acesso". A API recebe o ID do usuário e do produto, inserindo na tabela user_products (simulando webhook de pagamento aprovado).
-Liberação: O Frontend recarrega a lista de cursos do aluno. O produto comprado não exibe mais o botão de compra, e sim um player de vídeo (<video>) com o conteúdo do MinIO.
+### Ver status dos containers
+docker-compose ps
 
-Observabilidade (SRE)
-A stack de observabilidade é provisionada automaticamente. Não é necessário configurar manualmente o Grafana.
+### Ver logs em tempo real
+docker-compose logs -f backend frontend
 
-Acessando o Grafana
-URL: http://localhost:3002
-Login: admin | Senha: admin
-O que monitorar:
-Métricas (Prometheus): Vá no menu Explore -> Selecione Prometheus. Busque por http_requests_total para ver requisições na API, ou container_memory_usage_bytes para ver o consumo de RAM do WSL.
-Logs (Loki): Vá no menu Explore -> Selecione Loki. Na caixa de pesquisa (LogQL), digite {container_name=~"techedu_.*"} e clique em Run query. Você verá os logs em tempo real de todos os containers da aplicação.
- Resolução de Problemas (Troubleshooting)
-Durante o desenvolvimento, os seguintes desafios de infraestrutura foram resolvidos:
+### Ver logs de um serviço específico
+docker-compose logs -f backend
 
-Erro: Cannot find module 'express' no Docker:
-Causa: O volume do Docker sobrescrevia a pasta node_modules do container com a pasta vazia do host.
-Solução: Adição de um volume anônimo (- /app/node_modules) no docker-compose.yml.
-Erros 404 no Next.js:
-Causa: Ausência do arquivo layout.js (exigência do App Router do Next 14) e da diretiva "use client" nas páginas interativas.
-Solução: Criação do arquivo base e ajuste nas páginas React.
-Falha ao reproduzir vídeos no navegador:
-Causa: A bucket do MinIO estava como PRIVATE, bloqueando o acesso do navegador.
-Solução: Configuração da política de acesso público via CLI do MinIO Client (mc anonymous set download).
-Erro de Connection Refused no Grafana:
-Causa: Uso de http://localhost:9090 nas configurações de Data Source.
-Solução: Utilização do provisionamento automático apontando para o nome interno do serviço Docker (http://prometheus:9090 e http://loki:3100).
- Próximos Passos: Deploy para Kubernetes (K8s)
-Para migração desta stack local para um cluster K8s (EKS, GKE, Minikube):
+### Reiniciar um serviço específico
+docker-compose restart backend
 
-Registry: Enviar as imagens do backend e frontend para um repositório (DockerHub/ECR).
-StatefulSets: Criar StatefulSets para Postgres e MinIO com PersistentVolumeClaims (PVC).
-Ingress: Criar Services ClusterIP e um Ingress Controller para expor o Frontend e as APIs para a internet.
-Secrets: Migrar as variáveis de ambiente do docker-compose.yml para arquivos K8s Secrets.
+### Reiniciar todos os serviços
+docker-compose restart
 
+### Acessar terminal de um container
+docker exec -it techedu_backend sh
+
+## MinIO (Armazenamento)
+
+### Criar bucket pública via CLI
+docker run --rm --net=host --entrypoint /bin/sh minio/mc -c "mc alias set meu-minio http://localhost:9000 admin 12345678 && mc anonymous set download meu-minio/techedu"
+
+### Listar arquivos no MinIO via CLI
+docker run --rm --net=host --entrypoint /bin/sh minio/mc -c "mc alias set meu-minio http://localhost:9000 admin 12345678 && mc ls meu-minio/techedu"
+
+## Banco de Dados (PostgreSQL)
+
+### Acessar CLI do banco
+docker exec -it techedu_db psql -U admin -d techedu
+
+### Listar tabelas (dentro do psql)
+\dt
+
+### Consultar usuários
+SELECT * FROM users;
+
+### Consultar produtos
+SELECT * FROM products;
+
+### Consultar permissões de acesso
+SELECT * FROM user_products;
+
+### Sair do banco de dados
+\q
+
+## Portas de Acesso Local
+
+### Frontend (Landing Page)
+http://localhost:3001
+
+### Frontend (Painel Admin)
+http://localhost:3001/admin
+
+### Frontend (Portal do Aluno)
+http://localhost:3001/portal
+
+### Backend (API)
+http://localhost:3000/api/health
+
+### Backend (Métricas SRE)
+http://localhost:3000/metrics
+
+### MinIO (Console Web)
+http://localhost:9001
+
+### Grafana (Dashboard SRE)
+http://localhost:3002
+
+### Prometheus (Métricas)
+http://localhost:9090
+
+### cAdvisor (Métricas de Container)
+http://localhost:8080
+
+### Loki (API Logs)
+http://localhost:3100
